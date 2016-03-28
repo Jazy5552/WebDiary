@@ -253,7 +253,7 @@ function save() {
 }
 
 function open(name) {
-	//TODO Get password
+	key = $('#secretkey').find('input[name="key"]').val();
 	$.ajax({
 		type: 'GET',
 		url: './',
@@ -290,11 +290,34 @@ function setAutoSave(disable) {
 	if (disable === undefined || disable)
 		autoSave = setInterval(save, 30000);
 }
+function toggleKey() {
+	$('#togglekey').toggleClass('active');
+	var kInput = $('#secretkey').find('input[name="key"]');
+	if (kInput.prop('type') !== 'password')
+		kInput.prop('type', 'password');
+	else
+		kInput.prop('type', 'text');
+}
+function saveKeyLocally() {
+	var kInput = $('#secretkey').find('input[name="key"]').val();
+	localStorage.setItem('secretkey', kInput);
+}
+function getLocalKey() {
+	var kInput = $('#secretkey').find('input[name="key"]');
+	var lKey = localStorage.getItem('secretkey');
+	if (lKey !== undefined)
+		kInput.val(lKey);
+}
 $(document).ready(function() {
 	$('#secretkey').submit(function() {
 		save();
 		return false; //Dont refresh page
 	});
+	$('#togglekey').on('click', toggleKey);
+	$('#secretkey').find('input[name="key"]').on('change', saveKeyLocally);
+	$('#save').on('click', save);
+
+	getLocalKey();
 });
 </script>
 <body>
@@ -330,10 +353,17 @@ $(document).ready(function() {
 						<li><a href="#">Delete</a></li>
 					</ul>
 				</li>
+				<li class="navbar-form">
+					<button type="button" class="btn btn-default" data-toggle"tooltip" title="Save">
+						<span class="glyphicon glyphicon-floppy-disk" id="save"></span>
+					</button>
+				</li>
 			</ul>
 			<div class="pull-right">
 			<form class="navbar-form navbar-left" id="secretkey">
-				<span class="glyphicon glyphicon-lock" data-toggle="tooltip" title="Secret Key"></span>
+				<button type="button" class="btn btn-default" id="togglekey">
+					<span class="glyphicon glyphicon-lock" data-toggle="tooltip" title="Secret Key"></span>
+				</button>
 				<div class="form-group">
 					<input type="password" class="form-control" placeholder="Secret Key" name="key" />
 				</div>
