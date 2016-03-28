@@ -75,6 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			//No salt means decrypt failed!
 			die('Incorrect Key!');
 		}
+		//Decode html characters back
+		$plainText = htmlspecialchars_decode($plainText);
 
 		die($plainText);
 	} else if (isset($_GET['list'])) {
@@ -225,6 +227,7 @@ var key, autoSave;
 function save() {
 	var text = $('#textarea').val().trim();
 	var filename = $('#filename').html().trim();
+	key = $('#secretkey').find('input[name="key"]').val();
 	if (filename === '' || text === '' || filename === 'No File Open') return;
 	var request = $.ajax({
 		type: 'POST',
@@ -284,10 +287,14 @@ function notifySave(success) {
 function setAutoSave(disable) {
 	//Set save interval. This func is shit
 	if (autoSave !== undefined) clearInterval(autoSave);
-	if (toggle !== undefined && !disable)
+	if (disable === undefined || disable)
 		autoSave = setInterval(save, 30000);
 }
 $(document).ready(function() {
+	$('#secretkey').submit(function() {
+		save();
+		return false; //Dont refresh page
+	});
 });
 </script>
 <body>
@@ -319,11 +326,19 @@ $(document).ready(function() {
 						<li class="dropdown-header">Current Diary</li>
 						<li><a href="#">Save</a></li>
 						<li><a href="#">Save As</a></li>
-						<li><a href="#">Change password</a></li>
+						<li><a href="#">Change key</a></li>
 						<li><a href="#">Delete</a></li>
 					</ul>
 				</li>
 			</ul>
+			<div class="pull-right">
+			<form class="navbar-form navbar-left" id="secretkey">
+				<span class="glyphicon glyphicon-lock" data-toggle="tooltip" title="Secret Key"></span>
+				<div class="form-group">
+					<input type="password" class="form-control" placeholder="Secret Key" name="key" />
+				</div>
+			</form>
+			</div>
 		</div><!--/.nav-collapse -->
 	</div>
 </nav>
@@ -345,7 +360,7 @@ $(document).ready(function() {
 
 <footer class="footer">
 	<div class="container">
-		<p class="text-muted">I am footer</p>
+		<p class="text-muted">Made by Jazy Llerena using BootStrap and a PHP backend.</p>
 	</div>
 </footer>
 </body>
