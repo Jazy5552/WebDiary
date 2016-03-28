@@ -2,16 +2,51 @@
 //TODO Handle get requests to load previous diaries with a given password
 //TODO Handle post request to save text into desired diary file
 //TODO Handle get request that will display the main page template
-$errNoFileOpenHeader = 'No file open';
-$errNoFileOpenText = 'Click Options and then select to open an existing file or create a new one';
+$SALT = 'jazyisawesome';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (isset($_POST['filename']) && isset($_POST['text'])) {
-		//TODO Include password
+		$safeText = trim(htmlspecialchars($_POST['text']));
+		//Check for empty or invalid strings
+		if ($safeText === '' || $safeText === 'Incorrect key!') die('Invalid');
+
+		$safeFilename = basename(htmlspecialchars($_POST['filename'])) . '.diary';
+		$safeText = $SALT . $safeText; //My shitty salt
+
+		if (isset($_POST['key'])) {
+			//Use key to encrypt the diary text
+			$diaryText = UnsafeCrypto::encrypt(
+				$safeText,
+				$_POST['key']);
+		} else {
+			$diaryText = $safeText; //Plain text
+		}
+
+		//If file exists make sure the key is correct to write to it
+		if (file_exists($safeFilename)) {
+			//Check if the key is the same one previously used to
+			//prevent mischivious overwrites. My php is always disgusting...
+			
+			$file = fopen($safeFilename, 'r');
+			$text = fread($file, filesize($safeFilename));
+			fclose($file);
+			if (isset($_POST['key'])) {
+				//Decrypt first
+				$text = UnsafeCrypto::decrypt($text, $_POST['key']);
+			}
+			//Now check for salt
+			if (substr($text, 0, strlen($SALT)) === $SALT) {
+				//Salt found, must be legit key carry on
+			} else {
+				//Salt not found therefore key most likely wrong
+				die('Incorrect key!');
+			}
+		}
+
+		//If all is good just write to the file
 		//Saving a diary as $filename with $text as entry
-		$file = fopen(basename($_POST['filename'] . '.diary'), 'w');
-		//TODO Do some sort of encryption using password maybe?
-		fwrite($file, htmlspecialchars($_POST['text']));
+		$file = fopen($safeFilename, 'w'); //OVERWRITE FILE!!!
+		fwrite($file, $diaryText);
 		fclose($file);
 		die('OK');
 	} else if (isset($_POST['delete'])) {
@@ -20,12 +55,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 } else if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 	if (isset($_GET['filename'])) {
-		//TODO Include password
 		$filename = basename($_GET['filename'] . '.diary');
 		$file = fopen($filename, 'r');
-		//TODO Do some sort of decryption
 		$txt = fread($file, filesize($filename));
-		die($txt);
+		fclose($file);
+
+		if (isset($_GET['key'])) {
+			//Decrypt using key
+			$plainText = UnsafeCrypto::decrypt($txt, $_GET['key']);
+		} else {
+			$plainText = $txt;
+		}
+
+		//Find salt and remove it or die
+		if (substr($plainText, 0, strlen($SALT)) === $SALT) {
+			//Remove the salt
+			$plainText = substr($plainText, strlen($SALT));
+		} else {
+			//No salt means decrypt failed!
+			die('Incorrect Key!');
+		}
+
+		die($plainText);
 	} else if (isset($_GET['list'])) {
 		$files = scandir(__DIR__);
 		$rFiles = [];
@@ -38,6 +89,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	} else {
 		//Print out the template
 	}
+}
+/*
+ * UnsaveCrypto pull from stackoverflow
+ * Author: Scott Arciszewski
+ */
+
+class UnsafeCrypto
+{
+    const METHOD = 'aes-256-ctr';
+
+    /**
+     * Encrypts (but does not authenticate) a message
+     * 
+     * @param string $message - plaintext message
+     * @param string $key - encryption key (raw binary expected)
+     * @param boolean $encode - set to TRUE to return a base64-encoded 
+     * @return string (raw binary)
+     */
+    public static function encrypt($message, $key, $encode = false)
+    {
+        $nonceSize = openssl_cipher_iv_length(self::METHOD);
+        $nonce = openssl_random_pseudo_bytes($nonceSize);
+
+        $ciphertext = openssl_encrypt(
+            $message,
+            self::METHOD,
+            $key,
+            OPENSSL_RAW_DATA,
+            $nonce
+        );
+
+        // Now let's pack the IV and the ciphertext together
+        // Naively, we can just concatenate
+        if ($encode) {
+            return base64_encode($nonce.$ciphertext);
+        }
+        return $nonce.$ciphertext;
+    }
+
+    /**
+     * Decrypts (but does not verify) a message
+     * 
+     * @param string $message - ciphertext message
+     * @param string $key - encryption key (raw binary expected)
+     * @param boolean $encoded - are we expecting an encoded string?
+     * @return string
+     */
+    public static function decrypt($message, $key, $encoded = false)
+    {
+        if ($encoded) {
+            $message = base64_decode($message, true);
+            if ($message === false) {
+                throw new Exception('Encryption failure');
+            }
+        }
+
+        $nonceSize = openssl_cipher_iv_length(self::METHOD);
+        $nonce = mb_substr($message, 0, $nonceSize, '8bit');
+        $ciphertext = mb_substr($message, $nonceSize, null, '8bit');
+
+        $plaintext = openssl_decrypt(
+            $ciphertext,
+            self::METHOD,
+            $key,
+            OPENSSL_RAW_DATA,
+            $nonce
+        );
+
+        return $plaintext;
+    }
 }
 
 ?>
@@ -99,18 +220,75 @@ body .container {
 
 </style>
 <script>
+var key, autoSave;
+
 function save() {
-	var text = $('#textarea').val();
-	var filename = $('#filename').html(name);
+	var text = $('#textarea').val().trim();
+	var filename = $('#filename').html().trim();
+	if (filename === '' || text === '' || filename === 'No File Open') return;
+	var request = $.ajax({
+		type: 'POST',
+		url: './',
+		data: {
+			filename: filename,
+			text: text,
+			key: key
+		}
+	})
+		.done(function(data) {
+			console.log('Post: ' + data);
+			if (data === 'OK') {
+				notifySave(true);
+			} else {
+				notifySave(false);
+			}
+		})
+		.fail(function(data) {
+			notifySave(false);
+			console.log('Post: ' + data);
+		});
 }
 
+function open(name) {
+	//TODO Get password
+	$.ajax({
+		type: 'GET',
+		url: './',
+		data: {
+			filename: name,
+			key: key
+		}
+	})
+		.done(function(data) {
+			$('#filename').html(name);
+			$('#textarea').val(data);
+			setAutoSave();
+		})
+		.fail(function() {
+			console.log('Failed to open ' + name);
+		});
+}
 function createNew(name) {
 	$('#filename').html(name);
 	$('#textarea').val('');
+	setAutoSave();
 }
 function notifySave(success) {
 	//TODO Display notification somewhere temporarily of save
+	if (success) {
+		console.log('Save complete');
+	} else {
+		console.log('Save failed!');
+	}
 }
+function setAutoSave(disable) {
+	//Set save interval. This func is shit
+	if (autoSave !== undefined) clearInterval(autoSave);
+	if (toggle !== undefined && !disable)
+		autoSave = setInterval(save, 30000);
+}
+$(document).ready(function() {
+});
 </script>
 <body>
 <!-- Fixed navbar -->
@@ -158,13 +336,9 @@ function notifySave(success) {
 	</div>
 -->
 	<div class="panel panel-default">
-		<div class="panel-heading" id="filename">
-			No File Open
-		</div>
+		<div class="panel-heading" id="filename">No File Open</div>
 		<div class="panel-body">
-			<textarea class="form-control" id="textarea">
-				Click Options to open or create a diary file
-			</textarea>
+			<textarea class="form-control" id="textarea">Click Options to open or create a diary file</textarea>
 		</div>
 	</div>
 </div>
