@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (isset($_POST['filename']) && isset($_POST['text'])) {
 		$safeText = trim(htmlspecialchars($_POST['text']));
 		//Check for empty or invalid strings
-		if ($safeText === '' || $safeText === 'Incorrect key!') die('Invalid');
+		if ($safeText === '' || $safeText === 'Error!') die('Invalid');
 
 		$safeFilename = basename(htmlspecialchars($_POST['filename'])) . '.diary';
 		$safeText = $SALT . $safeText; //My shitty salt
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				//Salt found, must be legit key carry on
 			} else {
 				//Salt not found therefore key most likely wrong
-				die('Incorrect key!');
+				die('Error!');
 			}
 		}
 
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$plainText = substr($plainText, strlen($SALT));
 		} else {
 			//No salt means decrypt failed!
-			die('Incorrect Key!');
+			die('Error!');
 		}
 		//Decode html characters back
 		$plainText = htmlspecialchars_decode($plainText);

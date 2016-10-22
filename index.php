@@ -53,11 +53,27 @@ body .container {
 .container .text-muted {
   margin: 20px 0;
 }
+.disabled {
+	pointer-events: none;
+	background-color: #EAEAEA;
+}
 
 </style>
 <script>
 var key, autoSave;
+var disable = false; //Disable auto save (auto save is bad)
+var dOpen = false; //Holder for when a diary is open
 
+function close() {
+	//Close open file (Disable auto save) and clear the text
+	if (dOpen) {
+		dOpen = false;
+		if (autoSave !== undefined) clearInterval(autoSave);
+		$('#textarea').val('');
+		$('#filename').html('No File Open');
+		$('button.save').removeClass('btn-primary');
+	}
+}
 function save() {
 	var text = $('#textarea').val().trim();
 	var filename = $('#filename').html().trim();
@@ -90,19 +106,29 @@ function open(name) {
 	key = $('#secretkey').find('input[name="key"]').val();
 	$.ajax({
 		type: 'GET',
-		url: './',
+		url: './diary.php',
 		data: {
 			filename: name,
 			key: key
 		}
 	})
 		.done(function(data) {
-			$('#filename').html(name);
-			$('#textarea').val(data);
-			setAutoSave();
+			if (data === 'Error!') {
+				close();
+				console.log('Failed to open ' + name);
+				$('#textarea').val($('#textarea').val() + '\n' + 'Failed to open ' + name);
+			} else {
+				$('#filename').html(name);
+				$('#textarea').val(data);
+				setAutoSave();
+			}
 		})
 		.fail(function() {
+			close();
 			console.log('Failed to open ' + name);
+			$('#textarea').val($('#textarea').val() + '\n' +
+				'Failed to open ' + name);
+
 		});
 }
 function createNew(name) {
@@ -119,13 +145,17 @@ function notifySave(success) {
 	}
 }
 function setAutoSave(disable) {
+	$('button.save').addClass('btn-primary');
+	dOpen = true;
 	//Set save interval. This func is shit
 	if (autoSave !== undefined) clearInterval(autoSave);
-	if (disable === undefined || disable)
+	if (disable === undefined || !disable)
 		autoSave = setInterval(save, 30000);
 }
 function toggleKey() {
 	$('#togglekey').toggleClass('active');
+	$('#togglekey span').toggleClass('glyphicon-eye-open');
+	$('#togglekey span').toggleClass('glyphicon-eye-close');
 	var kInput = $('#secretkey').find('input[name="key"]');
 	if (kInput.prop('type') !== 'password')
 		kInput.prop('type', 'password');
@@ -142,7 +172,28 @@ function getLocalKey() {
 	if (lKey !== undefined)
 		kInput.val(lKey);
 }
+function prepCreateNewModal(e) {
+	//Set a default name
+	var date = new Date();
+	var def = date.getFullYear() + '-' + (date.getMonth()+1) + '-'
+		+ date.getDate();
+	$('#createNewModal input').val(def);
+}
+function modalCreateNew() {
+	var filename = $('#createNewFilename').val();
+	$('#createNewModal').modal('hide');
+	createNew(filename);
+}
+function modalOpen() {
+	var filename = $('#openFilename').val();
+	$('#openModal').modal('hide');
+	open(filename);
+}
+
 $(document).ready(function() {
+	$('#createNewModal').on('shown.bs.modal', prepCreateNewModal);
+	$('#createNewButton').on('click', modalCreateNew);
+	$('#openButton').on('click', modalOpen);
 	$('#secretkey').submit(function() {
 		save();
 		return false; //Dont refresh page
@@ -174,38 +225,83 @@ $(document).ready(function() {
 				<li><a href="#about">About</a></li>
 				<li><a href="#contact">Contact</a></li>
 -->
-				<li class="dropdown disabled">
-					<a href="#" class="dropdown-toggle disabled" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Options <span class="caret"></span></a>
+				<li class="dropdown">
+					<a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Options <span class="caret"></span></a>
 					<ul class="dropdown-menu">
-						<li><a href="#">New Diary</a></li>
-						<li><a href="#">Open Diary File</a></li>
+						<li><a data-toggle="modal" data-target="#createNewModal" href="#">New Diary</a></li>
+						<li><a data-toggle="modal" data-target="#openModal" href="#">Open Diary File</a></li>
 						<li role="separator" class="divider"></li>
 						<li class="dropdown-header">Current Diary</li>
 						<li><a class="save" href="#">Save</a></li>
-						<li><a href="#">Save As</a></li>
-						<li><a href="#">Change key</a></li>
-						<li><a href="#">Delete</a></li>
+						<li><a class="disabled" href="#">Save As</a></li>
+						<li><a class="disabled" href="#">Change key</a></li>
+						<li><a class="disabled" href="#">Delete</a></li>
 					</ul>
 				</li>
 				<li class="navbar-form">
-					<button type="button" class="save btn btn-default" data-toggle"tooltip" title="Save">
+					<button type="button" class="save btn" data-toggle="tooltip" title="Save">
 						<span class="glyphicon glyphicon-floppy-disk"></span>
 					</button>
 				</li>
 			</ul>
 			<div class="pull-right">
 			<form class="navbar-form navbar-left" id="secretkey">
-				<button type="button" class="btn btn-default" id="togglekey">
-					<span class="glyphicon glyphicon-lock" data-toggle="tooltip" title="Secret Key"></span>
-				</button>
+				<span class="glyphicon glyphicon-lock" data-toggle="tooltip" title="Secret Key"></span>
 				<div class="form-group">
-					<input type="password" class="form-control" placeholder="Secret Key" name="key" />
+					<input type="password" data-toggle="tooltip" title="Secret Key" class="form-control" placeholder="Secret Key" name="key" />
 				</div>
+				<button type="button" class="btn btn-default btn-sm" id="togglekey">
+					<span class="glyphicon glyphicon-eye-open" data-toggle="tooltip" title="Show Key"></span>
+				</button>
 			</form>
 			</div>
 		</div><!--/.nav-collapse -->
 	</div>
 </nav>
+
+<!--modal to Create New-->
+<div id="createNewModal" class="modal fade bs-modal-sm">
+  <div class="modal-dialog bs-modal-sm" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title">Create New Diary</h4>
+      </div>
+			<div class="modal-body">
+				<label for="createNewFilname">Diary Name</label>
+				<input id="createNewFilename" data-toggle="tooltip" title="Diary Name" class="form-control" placeholder="Diary Name" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button id="createNewButton" type="button" class="btn btn-primary">Create</button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<!--modal to Open-->
+<div id="openModal" class="modal fade bs-modal-sm">
+  <div class="modal-dialog bs-modal-sm" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title">Open Diary</h4>
+      </div>
+			<div class="modal-body">
+				<label for="openFilename">Diary Name</label>
+				<input id="openFilename" data-toggle="tooltip" title="Diary Name" class="form-control" placeholder="Diary Name" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button id="openButton" type="button" class="btn btn-primary">Open</button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
 
 <!--Main page content-->
 <div class="container">
