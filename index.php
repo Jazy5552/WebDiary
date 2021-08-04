@@ -58,6 +58,13 @@ body .container {
 	background-color: #EAEAEA;
 }
 
+#filename.success {
+  background-color: green;
+}
+#filename.error {
+  background-color: red;
+}
+
 </style>
 <script>
 var key, autoSave;
@@ -113,6 +120,7 @@ function open(name) {
 		}
 	})
 		.done(function(data) {
+			console.log(data);
 			if (data === 'Error!') {
 				close();
 				console.log('Failed to open ' + name);
@@ -138,10 +146,15 @@ function createNew(name) {
 }
 function notifySave(success) {
 	//TODO Display notification somewhere temporarily of save
+	const fileHeading = $('#filename');
+	fileHeading.removeClass('success');
+	fileHeading.removeClass('error');
 	if (success) {
 		console.log('Save complete');
+		fileHeading.addClass('success');
 	} else {
 		console.log('Save failed!');
+		fileHeading.addClass('error');
 	}
 }
 function setAutoSave(disable) {
@@ -175,8 +188,8 @@ function getLocalKey() {
 function prepCreateNewModal(e) {
 	//Set a default name
 	var date = new Date();
-	var def = date.getFullYear() + '-' + (date.getMonth()+1) + '-'
-		+ date.getDate();
+	var def = (date.getMonth()+1) + '-' + date.getDate() +
+		'-' + date.getFullYear();
 	$('#createNewModal input').val(def);
 }
 function modalCreateNew() {

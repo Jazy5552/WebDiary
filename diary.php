@@ -40,13 +40,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				//Salt found, must be legit key carry on
 			} else {
 				//Salt not found therefore key most likely wrong
-				die('Error!');
+				die('Error! Invalid');
 			}
 		}
 
 		//If all is good just write to the file
 		//Saving a diary as $filename with $text as entry
 		$file = fopen($safeFilename, 'w'); //OVERWRITE FILE!!!
+		if ($file === false) {
+		    // error, most likely permissions
+		    die('Error! Cant Open!');
+		}
 		fwrite($file, $diaryText);
 		fclose($file);
 		die('OK');
