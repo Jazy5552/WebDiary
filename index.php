@@ -32,7 +32,7 @@ body .container {
 	height: 100%;
 }
 .footer {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   width: 100%;
   /* Set the fixed height of the footer here */
